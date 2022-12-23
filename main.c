@@ -1,34 +1,75 @@
 // Подключение библиотек
+#include "thread.h"
 #include "xtimer.h"
 #include "timex.h"
 #include "periph/gpio.h"
 
-// Макрос для интервала времени, в течение которого трэд будет спать
-#define INTERVAL 500000
+// Выделение памяти под стек первого треда
+// Размер выделяемого стека задан макросом THREAD_STACKSIZE_DEFAULT
+char stack_one[THREAD_STACKSIZE_DEFAULT];
+char stack_two[THREAD_STACKSIZE_DEFAULT];
+
+// Это первый поток
+void *thread_one(void *arg)
+{
+    // Прием аргументов из главного потока
+    (void) arg;
+    // ВременнАя метка для отсчета времени сна
+    xtimer_ticks32_t last_wakeup_one = xtimer_now();
+    while(1){
+        // Переключение состояния пина PC8
+    	gpio_toggle(GPIO_PIN(PORT_C,8));
+        // Поток засыпает на 100000 микросекунд
+    	xtimer_periodic_wakeup(&last_wakeup_one, 100000);
+    }
+    return NULL;
+}
+
+void *thread_two(void *arg)
+{
+    // Прием аргументов из главного потока
+    (void) arg;
+    // ВременнАя метка для отсчета времени сна
+    xtimer_ticks32_t last_wakeup_one = xtimer_now();
+    while(1){
+        // Переключение состояния пина PC8
+        gpio_toggle(GPIO_PIN(PORT_C,9));
+        // Поток засыпает на 100000 микросекунд
+        xtimer_periodic_wakeup(&last_wakeup_one, 1000000);
+    }
+    return NULL;
+}
+
 
 int main(void)
 {
-  // ВременнАя метка для отсчета времени сна
-  xtimer_ticks32_t last_wakeup = xtimer_now();
-  // Инициализация пина PC8 на выход
-  gpio_init(GPIO_PIN(PORT_C, 9),GPIO_OUT);
-  gpio_init(GPIO_PIN(PORT_C,8),GPIO_OUT);
+    // Инициализация пина PC8 на выход
+	gpio_init(GPIO_PIN(PORT_C,8), GPIO_OUT);
 
-    while(1) {
-      // Задача засыпает на период времени, равный значению макроса INTERVAL
-      xtimer_periodic_wakeup(&last_wakeup, INTERVAL);
-      // Пин PC8 переключает свое состояние на противоположное
-      gpio_toggle(GPIO_PIN(PORT_C, 9));
-        xtimer_periodic_wakeup(&last_wakeup, INTERVAL);
-      // Пин PC8 переключает свое состояние на противоположное
-      gpio_toggle(GPIO_PIN(PORT_C, 8));
-    }
+    // Создание потока
+    // stack_one - выделенная под стек память
+    // sizeof(stack_one) - размер стека
+    // THREAD_PRIORITY_MAIN-1 - приоритет потока на 1 больше, чем у потока main.
+    // THREAD_CREATE_STACKTEST - флаги, которые создают маркеры использования стека
+    // thread_one - имя потока
+    // NULL - передаваемые в поток аргументы
+    // "thread_one" - дескриптор
+    thread_create(stack_one, sizeof(stack_one),
+                    THREAD_PRIORITY_MAIN-1,
+                    THREAD_CREATE_STACKTEST,
+                    thread_one,
+                    NULL, "thread_one");
+
+    thread_create(stack_two, sizeof(stack_two),
+                    THREAD_PRIORITY_MAIN-2,
+                    THREAD_CREATE_STACKTEST,
+                    thread_two,
+                    NULL, "thread_two");
 
     return 0;
 }
 
-/* 
-Задание 1. Установите интервал переключения светодиода на 0.5 секунды.
-Задание 2. Сделайте так, чтобы вместо одного светодиода моргал другой.
-Задание 3. Сделайте так, чтобы светодиоды моргали попеременно - один выключился, другой включился.
+/*
+    Задание 1. Создайте второй поток, который будет моргать другим светодиодом с другой частотой. 
+                Обратите внимание, что не рекомендуется создавать потоки с одинаковым приоритетом!
 */
